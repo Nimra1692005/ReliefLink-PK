@@ -1,0 +1,767 @@
+﻿<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ReliefLink – Admin Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+/* ── Admin-specific styles ── */
+.map-card {
+  background: linear-gradient(135deg,var(--g),var(--g2)); color: #F5EEDB;
+  border-radius: var(--rad); padding: 24px; min-height: 240px;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  position: relative; overflow: hidden;
+}
+.map-card::before {
+  content: ''; position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 30h60M30 0v60' stroke='%23ffffff08' stroke-width='1'/%3E%3C/svg%3E");
+}
+.map-card h4  { font-size:16px; font-weight:700; position:relative; margin-bottom:4px; }
+.map-card p   { font-size:13px; opacity:.6; position:relative; text-align:center; }
+.map-card .mi { font-size:42px; margin-bottom:10px; position:relative; }
+.actions-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.donut-wrap   { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.legend       { display:grid; gap:6px; font-size:12px; flex:1; min-width:120px; }
+.legend div   { display:flex; align-items:center; gap:8px; }
+.legend b     { margin-left:auto; }
+.dot          { width:9px; height:9px; border-radius:50%; flex:none; }
+.funnel       { display:grid; gap:6px; }
+.funnel div   { color:#fff; font-size:12px; font-weight:700; padding:10px 0; text-align:center; border-radius:8px; }
+@media(max-width:640px){ .actions-grid{ grid-template-columns:1fr; } }
+</style>
+</head><body>
+
+<div class="layout">
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="logo"><span class="logo-text">ReliefLink</span></div>
+  <div class="nav-group">
+    <button class="nav-item active" data-page="dashboard"><i data-i="chart"></i>Dashboard</button>
+    <button class="nav-item" data-page="requests"><i data-i="inbox"></i>Manage Requests<span class="badge" id="reqBadge">4</span></button>
+    <button class="nav-item" data-page="volunteers"><i data-i="users"></i>Volunteers</button>
+    <button class="nav-item" data-page="resources"><i data-i="bag"></i>Resources</button>
+    <a class="nav-item" href="food-admin.html"><i data-i="drop"></i>Food &amp; Water</a>
+    <a class="nav-item" href="clothes-admin.html"><i data-i="bag"></i>Clothing &amp; Supplies</a>
+    <a class="nav-item" href="home-admin.html"><i data-i="home"></i>Home Essentials</a>
+    <a class="nav-item" href="recovery-admin.html"><i data-i="tools"></i>Home &amp; Damage Recovery</a>
+    <a class="nav-item" href="missing-admin.html"><i data-i="search"></i>Missing Persons</a>
+    <div class="nav-sep"></div>
+    <button class="nav-item" data-page="reports"><i data-i="chart"></i>Reports &amp; Analytics</button>
+    <button class="nav-item" data-page="alerts"><i data-i="bell"></i>Alerts &amp; Notifications</button>
+    <button class="nav-item" data-page="settings"><i data-i="set"></i>Settings</button>
+    <a class="nav-item" href="settings.html?from=admin"><i data-i="globe"></i>App Preferences</a>
+  </div>
+  <div class="nav-bottom">
+    <div class="user-card"><div class="user-av" id="sideAv">AD</div><div class="info"><div class="name" id="sideName">Admin</div><div class="role">Administrator</div></div></div>
+    <button class="logout-btn" onclick="RL_Logout()"><i data-i="logout"></i>Log Out</button>
+  </div>
+</aside>
+<div class="mob-overlay" id="mobOverlay"></div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <button class="menu-toggle" onclick="RL_ToggleMenu()"><i data-i="list"></i></button>
+    <div class="left"><h1 id="pageTitle">Overview</h1><div class="sub" id="pageSub">Real-time situation and platform activity</div></div>
+    <div class="search-box"><i data-i="search"></i><input placeholder="Search anything…"></div>
+    <button class="notif-btn" onclick="navigate('alerts')"><i data-i="bell"></i><div class="dot"></div></button>
+    <div class="prof-chip"><div class="av" id="topAv">AD</div><div><b id="topName">Admin</b><small>Administrator</small></div></div>
+  </div>
+
+  <!-- ── DASHBOARD ── -->
+  <div id="page-dashboard">
+    <div class="stats-grid">
+      <div class="stat-card fade-up"><div class="stat-icon" style="background:#7C6CF022;color:var(--p)"><i data-i="inbox"></i></div><div><div class="val" id="totalReqs">&mdash;</div><div class="label">Total Requests</div></div></div>
+      <div class="stat-card fade-up"><div class="stat-icon" style="background:#4C8DF622;color:var(--b)"><i data-i="users"></i></div><div><div class="val" id="activeVols">&mdash;</div><div class="label">Active Volunteers</div></div></div>
+      <div class="stat-card fade-up"><div class="stat-icon" style="background:#3CC08E22;color:var(--gr)"><i data-i="check"></i></div><div><div class="val" id="resolved">&mdash;</div><div class="label">Resolved</div></div></div>
+      <div class="stat-card fade-up"><div class="stat-icon" style="background:#F58A3D22;color:var(--o)"><i data-i="clock"></i></div><div><div class="val" id="pending">&mdash;</div><div class="label">Pending</div></div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card fade-up">
+        <div class="card-header"><h3>Recent Requests</h3><span class="badge-sm">Last 24h</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Category</th><th>Location</th><th>Status</th></tr></thead>
+            <tbody id="reqTable">
+              <tr><td colspan="4" class="mute" style="text-align:center;padding:18px 0;font-size:13px">Loading live requests…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="map-card fade-up" style="margin-bottom:16px;padding:0">
+          <div id="adminMap" style="position:absolute;inset:0;border-radius:var(--rad);z-index:0"></div>
+          <div style="position:absolute;top:12px;left:14px;z-index:500;background:rgba(20,40,25,.72);color:#F5EEDB;padding:6px 12px;border-radius:10px;font-size:13px;font-weight:700">Live Disaster Map</div>
+          <p id="mapZones" style="position:absolute;bottom:10px;left:0;right:0;z-index:500;text-align:center;color:#F5EEDB;font-weight:600;opacity:1">Locating live activity…</p>
+        </div>
+        <div class="card fade-up">
+          <div class="card-header"><h3>Quick Actions</h3></div>
+          <div class="actions-grid">
+            <button class="action-btn" onclick="RL_Toast('Add Volunteer form coming soon')"><div class="ic" style="background:#3CC08E22;color:var(--gr)"><i data-i="users"></i></div>Add Volunteer</button>
+            <button class="action-btn" onclick="RL_Toast('Resource management coming soon')"><div class="ic" style="background:#4C8DF622;color:var(--b)"><i data-i="bag"></i></div>Resources</button>
+            <button class="action-btn" onclick="RL_Toast('Report generated!')"><div class="ic" style="background:#7C6CF022;color:var(--p)"><i data-i="chart"></i></div>Generate Report</button>
+            <button class="action-btn" onclick="RL_OpenModal('alertModal')"><div class="ic" style="background:#EF5B5B22;color:var(--r)"><i data-i="bell"></i></div>Send Alert</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card fade-up"><div class="card-header"><h3>Flood-Affected Areas</h3><span class="badge-sm">Updated today</span></div><div id="floodList"></div></div>
+      <div class="card fade-up"><div class="card-header"><h3>Food Stock</h3><span class="badge-sm">Qty / Capacity</span></div><div id="foodList"></div></div>
+      <div class="card fade-up"><div class="card-header"><h3>Shelters</h3><span class="badge-sm">Occupancy</span></div><div id="shelterList"></div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card fade-up"><div class="card-header"><h3>Volunteer Growth</h3><span class="badge-sm">Last 12 months</span></div><div style="font-size:28px;font-weight:800;margin-bottom:8px"><span id="volTotal">&mdash;</span> <span style="font-size:14px;font-weight:400;color:var(--mute)">volunteers</span></div><div id="lineChart"></div></div>
+      <div>
+        <div class="card fade-up" style="margin-bottom:16px"><div class="card-header"><h3>Skill Distribution</h3></div><div class="donut-wrap" id="deptDonut"></div></div>
+        <div class="card fade-up"><div class="card-header"><h3>Availability Split</h3></div><div class="donut-wrap" id="genderDonut"></div></div>
+      </div>
+    </div>
+
+    <div class="grid-3" style="grid-template-columns:1fr 1fr">
+      <div class="card fade-up"><div class="card-header"><h3>Hospitals</h3><span class="badge-sm">Beds free</span></div><div id="hospList"></div></div>
+      <div class="card fade-up"><div class="card-header"><h3>Rescue Teams</h3><span class="badge-sm">Status</span></div><div id="teamList"></div></div>
+    </div>
+
+    <div class="grid-3" style="grid-template-columns:1fr 1fr">
+      <div class="card fade-up"><div class="card-header"><h3>Recent Volunteer Signups</h3></div><div id="volReqs"></div></div>
+      <div class="card fade-up">
+        <div class="card-header"><h3>Open Relief Tasks</h3><span class="badge-sm">From command centre</span></div>
+        <div id="eventsList"><p class="mute" style="padding:12px 0;font-size:13px">No open relief tasks right now — tasks created in the command centre appear here.</p></div>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card fade-up"><div class="card-header"><h3>Hours Overview</h3><span class="badge-sm">Monthly</span></div><div id="barsChart"></div></div>
+      <div class="card fade-up"><div class="card-header"><h3>Recruitment Funnel</h3></div><div class="funnel" id="funnel"><p class="mute" style="font-size:13px;padding:8px 0">Recruitment funnel analytics are not connected to a live source yet.</p></div></div>
+      <div class="card fade-up"><div class="card-header"><h3>Top Volunteers</h3></div><div id="topVols"></div></div>
+    </div>
+  </div><!-- /dashboard -->
+
+  <!-- ── REQUESTS ── -->
+  <div id="page-requests" class="hide">
+    <div class="card"><div class="card-header"><h3>All Help Requests</h3><span class="badge-sm" id="hreqCount">0 open</span></div><div id="allReqs"></div></div>
+  </div>
+
+  <!-- ── VOLUNTEERS ── -->
+  <div id="page-volunteers" class="hide">
+    <div class="stats-grid" style="margin-bottom:16px">
+      <div class="stat-card"><div class="stat-icon" style="background:#7C6CF022;color:var(--p)"><i data-i="users"></i></div><div><div class="val" id="vTotal">&mdash;</div><div class="label">Total Volunteers</div></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:#3CC08E22;color:var(--gr)"><i data-i="check"></i></div><div><div class="val" id="vActive">&mdash;</div><div class="label">Available Now</div></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:#F5B83D22;color:var(--y)"><i data-i="calendar"></i></div><div><div class="val" id="vEvents">&mdash;</div><div class="label">Open Tasks</div></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:#4C8DF622;color:var(--b)"><i data-i="clock"></i></div><div><div class="val" id="vHours">&mdash;</div><div class="label">Hours Served</div></div></div>
+    </div>
+    <div class="card"><div class="card-header"><h3>Volunteers &amp; Resources</h3>
+            <select class="badge-sm" style="border:1px solid rgba(22,35,28,.2);border-radius:8px;padding:4px 8px;font-family:inherit;cursor:pointer" onchange="setVolFilter(this.value)" title="Filter by registered resource">
+              <option value="">All volunteers</option><option value="Boat">Boat owners</option><option value="Van">Van / 4x4</option><option value="Generator">Generators</option><option value="Medical">Medical kits</option><option value="Radio">Radios</option>
+            </select></div><div id="volReqs2"></div></div>
+  </div>
+
+  <!-- ── RESOURCES ── -->
+  <div id="page-resources" class="hide">
+    <div class="grid-3" style="grid-template-columns:1fr 1fr">
+      <div class="card"><div class="card-header"><h3>Food Stock</h3></div><div id="foodList2"></div></div>
+      <div class="card"><div class="card-header"><h3>Shelters</h3></div><div id="shelterList2"></div></div>
+    </div>
+  </div>
+
+  <!-- ── REPORTS ── -->
+  <div id="page-reports" class="hide">
+    <div class="grid-3" style="grid-template-columns:1fr 1fr">
+      <div class="card"><div class="card-header"><h3>Volunteer Growth</h3></div><div id="lineChart2"></div></div>
+      <div class="card"><div class="card-header"><h3>Hours Overview</h3></div><div id="barsChart2"></div></div>
+    </div>
+    <div class="grid-3" style="grid-template-columns:1fr 1fr">
+      <div class="card"><div class="card-header"><h3>Skill Distribution</h3></div><div class="donut-wrap" id="deptDonut2"></div></div>
+      <div class="card"><div class="card-header"><h3>Availability Split</h3></div><div class="donut-wrap" id="genderDonut2"></div></div>
+    </div>
+  </div>
+
+  <!-- ── ALERTS ── -->
+  <div id="page-alerts" class="hide">
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><h3>Sent Alerts</h3><button class="action-btn" style="padding:8px 14px;font-size:12px" onclick="RL_OpenModal('alertModal')"><i data-i="bell"></i>New Alert</button></div>
+      <div id="alertFeed"></div>
+    </div>
+    <div class="card"><div class="card-header"><h3>Flood-Affected Areas</h3></div><div id="floodList2"></div></div>
+  </div>
+
+  <!-- ── SETTINGS ── -->
+  <div id="page-settings" class="hide">
+    <div class="card" style="max-width:560px">
+      <div class="card-header"><h3>Account Settings</h3></div>
+      <div class="item"><div class="item-icon" style="background:#7C6CF022;color:var(--p)"><i data-i="user"></i></div><div class="t">Update Profile<small>Change name, email, avatar</small></div></div>
+      <div class="item"><div class="item-icon" style="background:#3CC08E22;color:var(--gr)"><i data-i="bell"></i></div><div class="t">Notifications<small>Manage alert preferences</small></div></div>
+      <div class="item"><div class="item-icon" style="background:#EF5B5B22;color:var(--r)"><i data-i="shield"></i></div><div class="t">Security<small>Password & 2FA settings</small></div></div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- SEND ALERT MODAL -->
+<div class="modal-overlay" id="alertModal" onclick="RL_CloseModalOutside(event,'alertModal')">
+  <div class="modal">
+    <h3>Send Alert</h3>
+    <p>Broadcast an emergency alert — it appears in every volunteer's notifications.</p>
+    <label>Title</label>
+    <input class="field-input" id="alTitle" placeholder="e.g. Flash flood warning — Sukkur">
+    <label>Severity</label>
+    <select class="field-input" id="alSev" style="margin-bottom:16px"><option value="critical">Critical</option><option value="high" selected>High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+    <label>Area (optional)</label>
+    <input class="field-input" id="alArea" placeholder="City or district">
+    <label>Message</label>
+    <textarea class="field-input" id="alMsg" style="min-height:70px" placeholder="Instructions for volunteers…"></textarea>
+    <div class="modal-actions">
+      <button class="btn-o" onclick="RL_CloseModal('alertModal')">Cancel</button>
+      <button class="btn-g" onclick="sendAlert()">Broadcast</button>
+    </div>
+  </div>
+</div>
+
+<!-- SMART VOLUNTEER MATCH MODAL -->
+<div class="modal-overlay" id="matchModal" onclick="RL_CloseModalOutside(event,'matchModal')">
+  <div class="modal">
+    <h3><i data-i="users"></i> Recommended Volunteers</h3>
+    <p id="matchSub">Ranked by skills, distance, resources and availability.</p>
+    <div id="matchList" style="max-height:52vh;overflow:auto;margin-top:12px"></div>
+    <div class="modal-actions"><button class="btn-o" onclick="RL_CloseModal('matchModal')">Close</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="../config.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="live.js"></script>
+<script src="shared.js"></script>
+<script>
+/* ── ADMIN AUTH GATE ── requires a signed-in admin session when the API is live.
+   Matches the live token model (RL_Auth session, not the legacy rl_token/is_admin).
+   With no API configured the dashboard still opens in demo/static mode. ── */
+(function () {
+  if (!window.RL_API) return;                    // demo / static preview
+  var s = window.RL_Auth && window.RL_Auth.sess ? window.RL_Auth.sess() : null;
+  var role = s && s.user && s.user.role;
+  if (s && s.token && role === 'admin') return;  // authorized admin
+  try {
+    var t = document.createElement('div');
+    t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#16231c;color:#fff;padding:12px 18px;border-radius:12px;font-size:13px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.3)';
+    t.textContent = s && s.token ? 'Not an admin account — please sign in as admin' : 'Please sign in as admin';
+    document.body.appendChild(t);
+  } catch (e) {}
+  setTimeout(function () { window.location.replace('../index.html#admin'); }, 900);
+})();
+</script>
+<script>
+/* ── DATA ── */
+var C = ['#7C6CF0','#4C8DF6','#3CC08E','#F5B83D','#F58A3D','#EF5B5B'];
+var FL = [];      /* flood-affected areas — populated LIVE from Open-Meteo river data (loadFloodAreas) */
+var FD = [];      /* food stock — no live endpoint yet; shows an empty state until the backend provides it */
+var SH = [];      /* shelters — LIVE from /shelters */
+var HOSP = [];    /* hospitals — LIVE from /hospitals */
+var TEAMS = [];   /* rescue teams — no live endpoint yet; shows an empty state until the backend provides it */
+var volReqs = []; /* volunteers — LIVE from /volunteers + admin-overview */
+var helpReqs = [];/* help requests — LIVE from /help-requests */
+var VOLNAME = {}; /* volunteer id → name, for dispatch labels */
+var TASKROWS = [];/* live volunteer_tasks rows — links a request to its dispatched volunteer */
+var SC_flood = {Critical:'#EF5B5B',High:'#F58A3D',Moderate:'#F5B83D',Low:'#3CC08E'};
+var TC_team  = {Available:'#3CC08E',Dispatched:'#F58A3D',Busy:'#EF5B5B'};
+var REQ_STEPS = ['Assign','Dispatch','Complete'];
+var SEV_C = { critical:'#EF5B5B', high:'#F58A3D', medium:'#F5B83D', low:'#3CC08E' };
+var OVR = null;   /* cached live admin-overview payload */
+
+function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+
+/* ── RENDERERS ── */
+function floodList(id) {
+  var el = RL_$(id); if (!el) return;
+  if (!FL.length) { el.innerHTML = '<p class="mute" style="padding:12px 0;font-size:13px">No live flood readings available right now.</p>'; RL_Icons(); return; }
+  el.innerHTML = FL.map(function(f) {
+    var c = SC_flood[f.sev] || '#3CC08E';
+    return '<div class="item"><div class="item-icon" style="background:' + c + '22;color:' + c + '"><i data-i="drop"></i></div>'
+         + '<div class="t">' + esc(f.area) + '<small>' + esc(f.prov) + ' · peak river ~' + f.river + ' m³/s</small></div>'
+         + RL_Tag(f.sev, c) + '</div>';
+  }).join('');
+  RL_Icons();
+}
+/* LIVE flood feed — real-time river discharge (Open-Meteo, keyless) for major gauge districts */
+var FLOOD_GAUGES = ['rajanpur','muzaffargarh','layyah','jhang','sukkur','charsadda','nowshera','multan'];
+var PROV_OF = { Rajanpur:'Punjab', Muzaffargarh:'Punjab', Layyah:'Punjab', Jhang:'Punjab', Sukkur:'Sindh', Charsadda:'KPK', Nowshera:'KPK', Multan:'Punjab' };
+function floodSev(v) { return v > 150 ? 'Critical' : v > 60 ? 'High' : v > 25 ? 'Moderate' : 'Low'; }
+function loadFloodAreas() {
+  if (!window.RL_LIVE) return;
+  var pts = FLOOD_GAUGES.map(function(c) { var g = RL_LIVE.geo(c); return g && { lat: g.lat, lng: g.lng, name: g.name }; }).filter(Boolean);
+  if (!pts.length) return;
+  RL_LIVE.floodAt(pts).then(function(res) {
+    if (!Array.isArray(res)) res = [res];
+    FL = res.map(function(r, idx) {
+      var dis = (r && r.daily && Array.isArray(r.daily.river_discharge)) ? r.daily.river_discharge : [];
+      dis = dis.filter(function(x) { return typeof x === 'number' && isFinite(x); });
+      var peak = dis.length ? Math.max.apply(null, dis) : 0;
+      var nm = (pts[idx] && pts[idx].name) || '';
+      return { area: nm, prov: PROV_OF[nm] || 'Pakistan', sev: floodSev(peak), river: Math.round(peak) };
+    }).filter(function(x) { return x.area && x.river > 0; }).sort(function(a, b) { return b.river - a.river; });
+    floodList('floodList'); if (RL_$('floodList2')) floodList('floodList2');
+  }).catch(function() { FL = []; floodList('floodList'); });
+}
+function foodList(id) {
+  var el = RL_$(id); if (!el) return;
+  if (!FD.length) { el.innerHTML = '<p class="mute" style="padding:12px 0;font-size:13px">Food stock is not connected to a live source yet.</p>'; RL_Icons(); return; }
+  el.innerHTML = FD.map(function(f) {
+    var p = Math.round(f[1] / f[2] * 100), low = p < 50;
+    return '<div class="item"><div class="item-icon" style="background:' + f[4] + '22;color:' + f[4] + '"><i data-i="bag"></i></div>'
+         + '<div class="t">' + f[0] + '<small>' + f[1] + ' / ' + f[2] + ' ' + f[3] + '</small>'
+         + '<div class="bar"><i style="width:' + p + '%;background:' + f[4] + '"></i></div></div>'
+         + (low ? RL_Tag('Low', '#EF5B5B') : RL_Tag(p + '%', '#3CC08E')) + '</div>';
+  }).join('');
+  RL_Icons();
+}
+function shelterList(id) {
+  var el = RL_$(id); if (!el) return;
+  if (!SH.length) { el.innerHTML = '<p class="mute" style="padding:12px 0;font-size:13px">No live shelter data yet.</p>'; RL_Icons(); return; }
+  el.innerHTML = SH.map(function(h) {
+    var p = Math.round(h[2] / h[3] * 100), c = p >= 95 ? '#EF5B5B' : p >= 75 ? '#F58A3D' : '#3CC08E';
+    var st = p >= 95 ? 'Full' : p >= 75 ? 'Near full' : 'Available';
+    return '<div class="item"><div class="item-icon" style="background:' + c + '22;color:' + c + '"><i data-i="home"></i></div>'
+         + '<div class="t">' + h[0] + '<small>' + h[1] + ' · ' + h[2] + '/' + h[3] + '</small>'
+         + '<div class="bar"><i style="width:' + p + '%;background:' + c + '"></i></div></div>'
+         + RL_Tag(st, c) + '</div>';
+  }).join('');
+  RL_Icons();
+}
+function hospList() {
+  var el = RL_$('hospList'); if (!el) return;
+  if (!HOSP.length) { el.innerHTML = '<p class="mute" style="padding:12px 0;font-size:13px">No live hospital data yet.</p>'; RL_Icons(); return; }
+  el.innerHTML = HOSP.map(function(h) {
+    var fr = h[2] / h[3], c = fr >= .3 ? '#3CC08E' : fr >= .1 ? '#F58A3D' : '#EF5B5B';
+    var st = fr >= .3 ? 'Accepting' : fr >= .1 ? 'Limited' : 'Full';
+    return '<div class="item"><div class="item-icon" style="background:' + c + '22;color:' + c + '"><i data-i="hosp"></i></div>'
+         + '<div class="t">' + h[0] + '<small>' + h[1] + ' · ' + h[2] + '/' + h[3] + ' free</small>'
+         + '<div class="bar"><i style="width:' + Math.round(fr*100) + '%;background:' + c + '"></i></div></div>'
+         + RL_Tag(st, c) + '</div>';
+  }).join('');
+  RL_Icons();
+}
+function teamList() {
+  var el = RL_$('teamList'); if (!el) return;
+  if (!TEAMS.length) { el.innerHTML = '<p class="mute" style="padding:12px 0;font-size:13px">Rescue-team tracking is not connected to a live source yet.</p>'; RL_Icons(); return; }
+  el.innerHTML = TEAMS.map(function(t) {
+    var c = TC_team[t[2]];
+    return '<div class="item"><div class="item-icon" style="background:' + c + '22;color:' + c + '"><i data-i="rescue"></i></div>'
+         + '<div class="t">' + t[0] + '<small>' + t[1] + ' · ' + t[3] + ' members</small></div>'
+         + RL_Tag(t[2], c) + '</div>';
+  }).join('');
+  RL_Icons();
+}
+var volFilter = '';
+function setVolFilter(v) { volFilter = v; renderVolReqs('volReqs'); renderVolReqs('volReqs2'); }
+function renderVolReqs(id) {
+  var el = RL_$(id); if (!el) return;
+  var list = volReqs.map(function(r, idx) { return [r, idx]; }).filter(function(p) {
+    return !volFilter || ((p[0].assets || []).join(' ').toLowerCase().indexOf(volFilter.toLowerCase()) > -1);
+  });
+  el.innerHTML = list.length
+    ? list.map(function(pair, i) {
+        var r = pair[0], idx = pair[1];
+        var col = C[i % C.length];
+        return '<div class="item"><div class="item-icon" style="background:' + col + '22;color:' + col + '"><i data-i="user"></i></div>'
+             + '<div class="t">' + r.name + '<small>' + (r.skills || 'General') + (r.city ? ' · ' + r.city : '') + '</small>'
+             + ((r.assets && r.assets.length) ? '<div style="margin-top:3px">' + r.assets.map(function(a) { return '<span class="chip">' + a + '</span>'; }).join('') + '</div>' : '')
+             + '</div>'
+             + (r.verified
+                 ? RL_Tag('Verified', '#3CC08E')
+                 : '<button class="action-btn" style="padding:8px 12px;font-size:12px" onclick="actReq(' + idx + ')">Approve</button>')
+             + '</div>';
+      }).join('')
+    : '<p class="mute" style="padding:10px 0">' + (volFilter ? 'No volunteers with that resource — clear the filter' : 'No pending signups') + '</p>';
+  var pendingN = volReqs.filter(function(r) { return !r.verified; }).length;
+  if (RL_$('reqBadge')) RL_$('reqBadge').textContent = pendingN;
+  RL_Icons();
+}
+function assignName(requestId) {
+  for (var i = 0; i < TASKROWS.length; i++) {
+    var t = TASKROWS[i];
+    if (t.request_id === requestId && t.assigned_volunteer_id) return VOLNAME[t.assigned_volunteer_id] || 'Volunteer ' + String(t.assigned_volunteer_id).slice(-4);
+  }
+  return '';
+}
+function loadVols() {
+  jget('/volunteers').then(function(j) {
+    var a = j && j.data;
+    if (!Array.isArray(a) || !a.length) return;
+    volReqs = a.slice(0, 40).map(function(v) {
+      VOLNAME[v.id] = v.full_name || 'Volunteer';
+      return { id: v.id, name: v.full_name || 'Volunteer', skills: (Array.isArray(v.skills) ? v.skills.join(', ') : (v.skills || '')),
+               assets: v.assets || [], verified: !!v.verified, city: v.city || '', availability: v.availability || '' };
+    });
+    renderVolReqs('volReqs'); renderVolReqs('volReqs2'); renderHelpReqs();
+  }).catch(function(){});
+}
+function actReq(i) {
+  var r = volReqs[i];
+  if (!r) return;
+  if (!r.id) { RL_Toast(r.name + ' approved'); volReqs.splice(i, 1); renderVolReqs('volReqs'); renderVolReqs('volReqs2'); return; }
+  RL_Send('POST', '/volunteers/' + encodeURIComponent(r.id) + '/verify', {}).then(function(res) {
+    if (res && res.ok) { r.verified = true; renderVolReqs('volReqs'); renderVolReqs('volReqs2'); RL_Toast(r.name + ' verified'); }
+    else RL_Toast('Could not reach the server');
+  });
+}
+function renderHelpReqs() {
+  if (!helpReqs.length) { RL_$('allReqs').innerHTML = '<p class="mute" style="padding:12px 0;font-size:13px">No help requests yet — incoming citizen requests appear here live.</p>'; if (RL_$('hreqCount')) RL_$('hreqCount').textContent = '0 open'; return; }
+  var TI = {Food:'bag',Rescue:'rescue',Shelter:'home',Medical:'hosp',Other:'inbox'};
+  var TC = {Food:C[3],Shelter:C[2],Medical:C[1],Rescue:C[5],Other:C[0]};
+  RL_$('allReqs').innerHTML = helpReqs.map(function(r, i) {
+    var c = TC[r.type] || C[0];
+    var tri = '';
+    if (r.an && window.RL_AI) {
+      var col = RL_AI.sevColor(r.an.triage.recommended);
+      var needTxt = (r.an.intent.needs||[]).map(function(n){ return RL_AI.NEED_LABEL[n]||n; }).slice(0,3).join(' · ');
+      var flagTxt = (r.an.intent.flags||[]).join(', ');
+      tri = '<div style="margin-top:5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+          + '<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:7px;background:' + col + '22;color:' + col + '">' + RL_AI.sevLabel(r.an.triage.recommended) + ' · ' + r.an.triage.score + '/100</span>'
+          + (needTxt ? '<span class="chip">' + needTxt + '</span>' : '')
+          + (flagTxt ? '<span class="chip" style="color:var(--o)">' + cap(flagTxt) + '</span>' : '')
+          + '</div>';
+    }
+    var actions = r.st < 3
+      ? '<div style="display:flex;gap:6px;align-items:center">'
+          + (r.an ? '<button class="action-btn" style="padding:8px 12px;font-size:12px;background:var(--p);color:#fff;border-color:var(--p)" onclick="openMatch(' + i + ')"><i data-i="users"></i>Match</button>' : '')
+          + (r.id
+              ? '<button class="action-btn" style="padding:8px 12px;font-size:12px" ' + (r.busy ? 'disabled ' : '') + 'onclick="advHR(' + i + ')">' + (r.busy ? 'Saving…' : REQ_STEPS[r.st]) + '</button>'
+              : RL_Tag('Offline', '#8A8A8A'))
+          + '</div>'
+      : RL_Tag('Done','#3CC08E');
+    var who = r.id ? assignName(r.id) : '';
+    var sub = r.type + ' · ' + r.p + ' people · ' + r.area + (r.ph ? ' · ' + r.ph : '') + (who ? ' · → ' + who : '');
+    return '<div class="item"><div class="item-icon" style="background:' + c + '22;color:' + c + '"><i data-i="' + (TI[r.type]||'inbox') + '"></i></div>'
+         + '<div class="t">' + r.n + '<small>' + sub + '</small>' + tri + '</div>'
+         + actions + '</div>';
+  }).join('');
+  RL_$('hreqCount').textContent = helpReqs.filter(function(r) { return r.st < 3; }).length + ' open';
+  RL_Icons();
+}
+function advHR(i) {
+  var r = helpReqs[i];
+  if (!r || r.busy) return;
+  var next = ['assigned', 'in_progress', 'resolved'][r.st];
+  if (!next) return;
+  if (!r.id) { RL_Toast('This request is not on the server yet'); return; }
+  r.busy = true; renderHelpReqs();
+  RL_Send('PATCH', '/help-requests/' + encodeURIComponent(r.id), { status: next }).then(function(res) {
+    r.busy = false;
+    if (res && res.ok) {
+      r.st = HR_ST[next]; r.status = next;
+      if (next === 'resolved') TASKROWS = TASKROWS.filter(function(t) { return t.request_id !== r.id; });
+      renderHelpReqs();
+      RL_Toast(next === 'resolved' ? 'Closed — citizen now sees "Resolved"' : 'Saved — citizen tracker: ' + cap(next.replace('_', ' ')));
+    } else {
+      renderHelpReqs();
+      RL_Toast(res && res.message ? res.message : 'Could not save — sign in as admin first');
+    }
+  });
+}
+
+/* ── #3 SMART VOLUNTEER MATCHING — rank volunteers by skills, distance, resources & availability ── */
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
+var NEED2SKILL = { rescue:['rescue','boat','swim','evacuation'], evacuation:['rescue','evacuation','transport','boat'], medical:['medical','health','nurse','doctor','first aid','paramedic'], shelter:['shelter','camp','housing'], food_water:['food','ration','meal','water','relief'], transport:['transport','driver','vehicle','van','boat'], search:['rescue','search','missing'], assessment:['assessment','coordinator','general','relief'] };
+var NEED2ASSET = { rescue:['Boat','4x4','Rope'], evacuation:['Boat','Van','4x4','Bus'], medical:['Medical','Kit','Oxygen'], shelter:['Tent','Generator'], food_water:['Van','Truck'], transport:['Boat','Van','4x4','Bus'], search:['Radio'], assessment:[] };
+function reqPoint(r) { if (r.lat != null && r.lng != null) return { lat: r.lat, lng: r.lng }; if (window.RL_LIVE && r.area) { var g = RL_LIVE.geo(r.area); if (g) return { lat: g.lat, lng: g.lng }; } return null; }
+function volPoint(v) { if (window.RL_LIVE && v.city) { var g = RL_LIVE.geo(v.city); if (g) return { lat: g.lat, lng: g.lng }; } return null; }
+function matchVolunteers(r) {
+  var an = r.an || (window.RL_AI ? RL_AI.analyze(r.desc || r.type || '') : null);
+  var needs = an ? an.intent.needs : [];
+  var urgW = an ? ({ critical: 1.12, high: 1.06, medium: 1, low: 1 }[an.triage.recommended] || 1) : 1;
+  var rp = reqPoint(r);
+  return (volReqs || []).map(function(v) {
+    var score = 0, why = [];
+    var sk = ((v.skills || '') + ' ' + (v.name || '')).toLowerCase();
+    var as = (v.assets || []).join(' ').toLowerCase();
+    var matched = [];
+    needs.forEach(function(n) { var keys = NEED2SKILL[n] || [n]; if (keys.some(function(k){ return sk.indexOf(k) > -1; })) matched.push(n); });
+    if (matched.length) { score += Math.min(45, 24 + (matched.length - 1) * 10); why.push('Skills: ' + matched.map(function(n){ return RL_AI.NEED_LABEL[n]||n; }).join(', ')); }
+    var assetHit = [];
+    needs.forEach(function(n) { (NEED2ASSET[n] || []).forEach(function(a) { if (as.indexOf(a.toLowerCase()) > -1 && assetHit.indexOf(a) < 0) assetHit.push(a); }); });
+    if (assetHit.length) { score += Math.min(18, assetHit.length * 8); why.push('Has: ' + assetHit.join(', ')); }
+    if (rp && window.RL_LIVE) { var vp = volPoint(v); if (vp) { var dist = RL_LIVE.distKm(rp, vp); score += dist <= 5 ? 25 : dist <= 20 ? 20 : dist <= 50 ? 13 : dist <= 120 ? 7 : 3; why.push((dist < 1 ? '<1' : Math.round(dist)) + ' km away'); } }
+    if (v.verified) { score += 12; why.push('Verified'); }
+    var av = String(v.availability || '').toLowerCase();
+    if (av === 'available' || av === 'active' || av === 'on_call') { score += 6; why.push('Available now'); }
+    score = Math.min(100, Math.round(score * urgW));
+    return { v: v, score: score, why: why };
+  }).sort(function(a, b) { return b.score - a.score; });
+}
+var MATCH_I = -1, MATCH_LIST = [];
+function openMatch(i) {
+  var r = helpReqs[i]; if (!r || !window.RL_AI) { RL_Toast('Matching needs the AI engine'); return; }
+  MATCH_I = i;
+  RL_OpenModal('matchModal');
+  var sub = RL_$('matchSub');
+  if (sub) sub.innerHTML = 'For <b>' + esc(r.n) + '</b> · ' + r.type + (r.area ? ' · ' + esc(r.area) : '') + ' · AI ' + RL_AI.sevLabel(r.an ? r.an.triage.recommended : 'medium');
+  var el = RL_$('matchList'); if (!el) return;
+  var list = matchVolunteers(r).slice(0, 8);
+  MATCH_LIST = list;
+  if (!list.length) { el.innerHTML = '<p class="mute">No volunteers registered yet.</p>'; return; }
+  var note = (!list[0] || list[0].score === 0)
+    ? '<p class="mute" style="padding:0 4px 8px">No registered volunteer matches these needs yet — showing closest profiles. Verify skills &amp; location before dispatching.</p>'
+    : '';
+  el.innerHTML = note + list.map(function(m, k) {
+    var col = m.score >= 65 ? '#3CC08E' : m.score >= 40 ? '#F5B83D' : '#8A8A8A';
+    return '<div class="item"><div class="item-icon" style="background:' + col + '22;color:' + col + '"><i data-i="user"></i></div>'
+      + '<div class="t"><b>' + esc(m.v.name) + '</b><small>' + (m.why.length ? esc(m.why.join(' · ')) : 'General volunteer' + (m.v.city ? ' · ' + esc(m.v.city) : '')) + '</small>'
+      + '<div class="bar"><i style="width:' + m.score + '%;background:' + col + '"></i></div></div>'
+      + (r.id
+          ? '<button class="action-btn" style="padding:8px 12px;font-size:12px" onclick="dispatchVol(' + k + ')">Assign</button>'
+          : RL_Tag(m.score + '/100', col)) + '</div>';
+  }).join('');
+  RL_Icons();
+}
+/* Hand the request to a volunteer: creates a real task and moves the citizen tracker to "Assigned" */
+function dispatchVol(k) {
+  var r = helpReqs[MATCH_I], m = MATCH_LIST[k];
+  if (!r || !m) return;
+  if (!r.id) { RL_Toast('This request is not on the server yet'); return; }
+  var an = r.an;
+  RL_Send('POST', '/tasks', {
+    request_id: r.id,
+    title: (r.type || 'Help') + ' — ' + r.n + (r.area ? ' · ' + r.area : ''),
+    category: r.cat || 'special',
+    city: r.area || '',
+    priority: (an && an.triage && an.triage.recommended) || 'medium',
+    skills_needed: (an && an.intent && an.intent.needs) || [],
+    assigned_volunteer_id: m.v.id,
+    progress_note: 'Dispatched from the admin matching engine'
+  }).then(function(res) {
+    if (res && res.ok) {
+      TASKROWS.unshift(res.data);
+      r.st = Math.max(r.st, 1); r.status = 'assigned';
+      RL_CloseModal('matchModal');
+      renderHelpReqs(); loadOverview();
+      RL_Toast(m.v.name + ' assigned · citizen tracker now shows Assigned');
+    } else RL_Toast(res && res.message ? res.message : 'Could not dispatch — task store unavailable');
+  });
+}
+
+function topVols(list) {
+  var el = RL_$('topVols'); if (!el) return;
+  if (!Array.isArray(list) || !list.length) { el.innerHTML = '<p class="mute" style="padding:12px 0;font-size:13px">Top volunteers will appear once completed tasks are recorded.</p>'; RL_Icons(); return; }
+  el.innerHTML = list.map(function(v, i) { var col = C[i % C.length];
+    return '<div class="item"><div class="item-icon" style="background:' + col + '22;color:' + col + '"><i data-i="star"></i></div><div class="t">' + esc(v.name || 'Volunteer') + '<small>' + (v.tasks || 0) + ' tasks completed</small></div><b>' + (v.hours || 0) + 'h</b></div>';
+  }).join('');
+  RL_Icons();
+}
+
+/* ── NAVIGATION ── */
+var PAGES = {
+  dashboard: 'Overview|Real-time situation and platform activity',
+  requests:  'Manage Requests|Review and respond to help requests',
+  volunteers:'Volunteers|Manage volunteer network',
+  resources: 'Resources|Track food, shelters and supplies',
+  reports:   'Reports & Analytics|Platform performance data',
+  alerts:    'Alerts & Notifications|Disaster alerts and flood data',
+  settings:  'Settings|Account and system preferences'
+};
+/* ── LIVE CHART DATA — charts render only real platform data; a clean empty state is shown until data exists ── */
+/* x-axis covers the trailing 12 months ending with the current month (matches volunteer_growth / hours_monthly windows) */
+function monthLetters() {
+  var L = 'JFMAMJJASOND'.split(''), now = new Date(), out = [];
+  for (var i = 11; i >= 0; i--) {
+    var dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    var s = L[dt.getMonth()];
+    if (dt.getMonth() === 0 && dt.getFullYear() !== now.getFullYear()) s += String(dt.getFullYear()).slice(2);
+    out.push(s);
+  }
+  return out;
+}
+function hasSeries(a) { return Array.isArray(a) && a.some(function(v) { return v > 0; }); }
+function growthData() { return (OVR && hasSeries(OVR.volunteer_growth)) ? OVR.volunteer_growth : null; }
+function hoursData()  { return (OVR && hasSeries(OVR.hours_monthly))  ? OVR.hours_monthly  : null; }
+function skillData()  { return (OVR && Array.isArray(OVR.skill_distribution) && OVR.skill_distribution.length)
+  ? OVR.skill_distribution.map(function(s, i) { return [cap(s.name), s.count, C[i % C.length]]; }) : null; }
+var AV_COL = { available:'#3CC08E', weekends:'#F5B83D', evenings:'#4C8DF6', on_call:'#7C6CF0', deployed:'#F58A3D', unavailable:'#EF5B5B' };
+function availData()  { return (OVR && Array.isArray(OVR.availability) && OVR.availability.length)
+  ? OVR.availability.map(function(a, i) { return [cap(String(a.name).replace(/_/g, ' ')), a.count, AV_COL[a.name] || C[i % C.length]]; }) : null; }
+function emptyChart(id, msg) { var el = RL_$(id); if (el) el.innerHTML = '<p class="mute" style="padding:18px 6px;font-size:13px;text-align:center">' + msg + '</p>'; }
+function drawLine(id) { var d = growthData(); if (d) RL_Line(id, d); else emptyChart(id, 'Volunteer growth will appear once signups are recorded.'); }
+function drawBars(id) { var d = hoursData(); if (d) RL_Bars(id, d, monthLetters()); else emptyChart(id, 'Hours served will appear once task time is logged.'); }
+function drawDonut(id, data, label) { if (data) RL_Donut(id, data, (OVR && OVR.active_volunteers) || 0); else emptyChart(id, 'No ' + label + ' data yet.'); }
+function drawAllCharts() { drawLine('lineChart'); drawBars('barsChart'); drawDonut('deptDonut', skillData(), 'skill'); drawDonut('genderDonut', availData(), 'availability'); }
+function renderReports() { drawLine('lineChart2'); drawBars('barsChart2'); drawDonut('deptDonut2', skillData(), 'skill'); drawDonut('genderDonut2', availData(), 'availability'); }
+function navigate(page) {
+  RL_Navigate(page, PAGES, function(p) {
+    if (p === 'resources')  { foodList('foodList2'); shelterList('shelterList2'); }
+    if (p === 'reports')    { renderReports(); }
+    if (p === 'alerts')     { floodList('floodList2'); loadAlerts(); }
+    if (p === 'volunteers') { renderVolReqs('volReqs2'); }
+    if (p === 'requests')   { renderHelpReqs(); }
+  });
+}
+RL_WireNav(PAGES, function(p) { navigate(p); });
+
+/* ── LIVE API ── */
+var API = (window.RELIEF_API || '').replace(/\/$/, '');
+function jget(p) {
+  return Promise.race([
+    fetch(API + p).then(function(r) { if (!r.ok) throw 0; return r.json(); }),
+    new Promise(function(_, rj) { setTimeout(function() { rj(0); }, 8000); })
+  ]);
+}
+var REQ_TAG = { Pending:'tag-yellow', Assigned:'tag-blue', 'In Progress':'tag-orange', Resolved:'tag-green', Critical:'tag-red' };
+var SHORT_TYPE = { rescue:'Rescue', medical:'Medical', food:'Food', shelter:'Shelter', clothing:'Other', transport:'Other', sanitation:'Other', special:'Other', recovery:'Other', missing:'Other', psychological:'Other', flood_predictor:'Other' };
+var HR_ST = { pending:0, assigned:1, in_progress:2, resolved:3 };
+
+function loadOverview() {
+  RL_Get('/analytics/admin-overview').then(function(o) {
+    if (!o) return;
+    OVR = o;
+    if (o.total_requests != null && RL_$('totalReqs')) RL_$('totalReqs').textContent = o.total_requests;
+    if (o.active_volunteers != null && RL_$('activeVols')) RL_$('activeVols').textContent = o.active_volunteers;
+    if (o.resolved != null && RL_$('resolved')) RL_$('resolved').textContent = o.resolved;
+    if (o.pending != null && RL_$('pending')) RL_$('pending').textContent = o.pending;
+    /* Volunteers page stats — all real */
+    if (o.active_volunteers != null && RL_$('vTotal')) RL_$('vTotal').textContent = o.active_volunteers;
+    if (o.volunteers_available != null && RL_$('vActive')) RL_$('vActive').textContent = o.volunteers_available;
+    if (o.open_tasks != null && RL_$('vEvents')) RL_$('vEvents').textContent = o.open_tasks;
+    if (o.hours_total != null && RL_$('vHours')) RL_$('vHours').textContent = Number(o.hours_total).toLocaleString();
+    /* Real signups replace the mock approval list */
+    if (Array.isArray(o.recent_volunteers) && o.recent_volunteers.length) {
+      volReqs = o.recent_volunteers;
+      renderVolReqs('volReqs'); renderVolReqs('volReqs2');
+    }
+    /* Dashboard charts + top volunteers from live data (empty state until the backend reports any) */
+    RL_$('volTotal') && (RL_$('volTotal').textContent = o.active_volunteers);
+    drawAllCharts();
+    topVols(o.top_volunteers);
+    if (Array.isArray(o.recent_requests) && o.recent_requests.length && RL_$('reqTable')) {
+      RL_$('reqTable').innerHTML = o.recent_requests.map(function(r) {
+        var st = r.status || 'Pending';
+        return '<tr><td>#' + r.id + '</td><td>' + (r.category||'—') + '</td><td>' + (r.location||'—') + '</td><td><span class="tag ' + (REQ_TAG[st]||'tag-blue') + '">' + st + '</span></td></tr>';
+      }).join('');
+    }
+    if (Array.isArray(o.map_markers)) {
+      if (RL_$('mapZones')) RL_$('mapZones').textContent = o.map_markers.length + ' active zones across Pakistan';
+      plotReqMarkers(o.map_markers);
+    }
+  });
+}
+function loadHelpRequests() {
+  RL_Get('/help-requests?limit=100').then(function(a) {
+    if (!Array.isArray(a) || !a.length) return;
+    helpReqs = a.map(function(x) {
+      // the service pages store their extra fields (rider, quantity…) as an encoded
+      // token inside the description — the queue only ever shows the human line
+      var desc = String(x.description || '').replace(/\u27e6rl:[\s\S]*?\u27e7/g, '').trim();
+      var pm = /\((\d+) people\)/.exec(desc);
+      var an = window.RL_AI ? RL_AI.analyze(desc || (x.category||'')) : null;
+      if (an && x.urgency === 'critical' && an.triage.recommended !== 'critical') an.triage = { score: Math.max(an.triage.score, 78), recommended: 'critical' };
+      return { id: x.id, n: x.full_name || 'Citizen', area: x.city || '', ph: x.phone || '', status: x.status || 'pending',
+               type: SHORT_TYPE[x.category] || 'Other',
+               cat: x.category, desc: desc, lat: x.latitude != null ? +x.latitude : null, lng: x.longitude != null ? +x.longitude : null, an: an,
+               p: (an && an.intent.people_count) ? an.intent.people_count : (pm ? parseInt(pm[1],10) : 1),
+               st: HR_ST[x.status] != null ? HR_ST[x.status] : 0 };
+    });
+    renderHelpReqs();
+  });
+}
+/* Open volunteer tasks → "Open Relief Tasks" card + dispatch labels on the request queue */
+function loadOpenTasks() {
+  RL_Get('/tasks').then(function(a) {
+    if (!Array.isArray(a)) return;
+    TASKROWS = a;
+    var open = a.filter(function(t) { return t.status === 'open'; });
+    if (!RL_$('eventsList')) return;
+    RL_$('eventsList').innerHTML = open.length ? open.slice(0, 3).map(function(t) {
+      var c = SEV_C[t.priority] || '#4C8DF6';
+      return '<div class="item"><div class="item-icon" style="background:' + c + '22;color:' + c + '"><i data-i="calendar"></i></div>'
+           + '<div class="t">' + (t.title || 'Relief Task') + '<small>' + (t.city || 'Location TBD') + ' · ' + cap(t.priority || 'medium') + ' priority</small></div>'
+           + RL_Tag('Open', c) + '</div>';
+    }).join('') : '<p class="mute" style="padding:10px 0">No open relief tasks — dispatch one from the request queue</p>';
+    RL_Icons();
+    renderHelpReqs();
+  });
+}
+/* Real alert feed + broadcast */
+function loadAlerts() {
+  RL_Get('/alerts?limit=20').then(function(a) {
+    var el = RL_$('alertFeed');
+    if (!el) return;
+    if (!Array.isArray(a)) { el.innerHTML = '<p class="mute" style="padding:10px 0">Alert feed unavailable (backend offline)</p>'; return; }
+    el.innerHTML = a.length ? a.map(function(x) {
+      var c = SEV_C[x.severity] || '#F5B83D';
+      return '<div class="item"><div class="item-icon" style="background:' + c + '22;color:' + c + '"><i data-i="bell"></i></div>'
+           + '<div class="t">' + (x.title || 'Alert') + '<small>' + (x.location_text || x.disaster_type || 'General') + (x.description ? ' · ' + String(x.description).slice(0, 90) : '') + '</small></div>'
+           + RL_Tag(cap(x.severity || 'medium'), c) + '</div>';
+    }).join('') : '<p class="mute" style="padding:10px 0">No alerts sent yet — use Send Alert above</p>';
+    RL_Icons();
+  });
+}
+function sendAlert() {
+  var title = (RL_$('alTitle') || {}).value || '', sev = (RL_$('alSev') || {}).value || 'high';
+  var area  = (RL_$('alArea') || {}).value || '',  msg  = (RL_$('alMsg') || {}).value || '';
+  if (!title.trim()) { RL_Toast('Enter an alert title'); return; }
+  RL_Send('POST', '/alerts', { title: title.trim(), severity: sev, location_text: area, description: msg, disaster_type: 'flood' }).then(function(res) {
+    if (res && res.ok) {
+      RL_CloseModal('alertModal');
+      RL_$('alTitle').value = ''; RL_$('alArea').value = ''; RL_$('alMsg').value = '';
+      RL_Toast('Alert broadcast to all volunteers');
+      loadAlerts(); loadOverview();
+    } else {
+      RL_Toast(res && res.message ? res.message : 'Could not reach the server');
+    }
+  });
+}
+function loadLive() {
+  if (!API) return;
+  loadOverview();
+  loadHelpRequests();
+  loadOpenTasks();
+  loadAlerts();
+  loadVols();
+  jget('/shelters').then(function(j) {
+    var a = j && j.data; if (!Array.isArray(a) || !a.length) return;
+    SH = a.map(function(x) { return [x.name, x.address||'', x.current_occupancy||0, x.capacity||1]; });
+    shelterList('shelterList');
+  }).catch(function(){});
+  jget('/hospitals').then(function(j) {
+    var a = j && j.data; if (!Array.isArray(a) || !a.length) return;
+    HOSP = a.map(function(x) { return [x.name, x.address||'', x.beds_available||0, x.capacity||1]; });
+    hospList();
+  }).catch(function(){});
+}
+
+var ADMIN_MAP=null;
+function initAdminMap(){
+  if(!window.L||!window.RL_LIVE||ADMIN_MAP) return;
+  ADMIN_MAP = RL_LIVE.map('adminMap', 30.3, 69.3, 5);
+  if(!ADMIN_MAP) return;
+  var zones=['rajanpur','muzaffargarh','layyah','charsadda','nowshera','sukkur'];
+  zones.forEach(function(c){ var g=RL_LIVE.geo(c); if(g) RL_LIVE.marker(ADMIN_MAP,g.lat,g.lng,''+g.name+', Pakistan','#EF5B5B'); });
+  setTimeout(function(){ try{ ADMIN_MAP.invalidateSize(); }catch(e){} }, 250);
+}
+function plotReqMarkers(list){
+  if(!ADMIN_MAP||!Array.isArray(list)) return;
+  list.forEach(function(r){ if(r.latitude!=null&&r.longitude!=null) RL_LIVE.marker(ADMIN_MAP,+r.latitude,+r.longitude,''+(r.full_name||r.name||r.title||'Alert')+' — '+(r.location_text||r.location||r.city||''),'#F5B83D'); });
+}
+
+/* ── BOOT ── */
+RL_BootUser({ defaultName:'Admin', defaultRole:'admin' });
+helpReqs.forEach(function(r){ if(!r.an && window.RL_AI && r.desc) r.an = RL_AI.applyUrgentFlag(RL_AI.analyze(r.desc), r.type==='Rescue'); });
+floodList('floodList'); foodList('foodList'); shelterList('shelterList');
+hospList(); teamList(); renderVolReqs('volReqs'); renderHelpReqs(); topVols();
+drawAllCharts();
+RL_Icons();
+initAdminMap();
+loadFloodAreas();   /* live river / flood feed (Open-Meteo, keyless) */
+loadLive();
+/* keep the command centre real-time — re-poll live sources every 60s */
+setInterval(function(){ try { loadLive(); loadFloodAreas(); } catch(e){} }, 60000);
+</script>
+</body></html>

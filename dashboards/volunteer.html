@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ReliefLink – Volunteer Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* ── Volunteer-specific styles ── */
+.filter-sel {
+  background: var(--card); border: 1.5px solid var(--line); border-radius: 12px;
+  padding: 9px 14px; font: inherit; font-size: 13px; color: var(--ink); outline: none; cursor: pointer;
+}
+.filter-sel:focus { border-color: var(--gold); }
+.filter-chip {
+  display: flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 12px;
+  border: 1.5px solid var(--line); background: var(--card); font-size: 13px; font-weight: 600;
+  color: var(--mute); cursor: pointer; transition: .2s; white-space: nowrap;
+}
+.filter-chip:hover, .filter-chip.active { border-color: var(--gold); background: rgba(201,162,39,.08); color: var(--ink); }
+.filters { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; }
+.task-card {
+  background: var(--card); border: 1.5px solid var(--line); border-radius: var(--rad);
+  padding: 18px; box-shadow: var(--sh); transition: all .2s; position: relative; overflow: hidden; margin-bottom: 14px;
+}
+.task-card:hover { border-color: var(--gold); box-shadow: 0 8px 32px rgba(27,58,42,.12); transform: translateY(-1px); }
+.task-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 4px 0 0 4px; }
+.task-card.critical::before { background: var(--r); }
+.task-card.high::before     { background: var(--o); }
+.task-card.medium::before   { background: var(--y); }
+.task-card.low::before      { background: var(--gr); }
+.task-top   { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.task-title { font-weight: 700; font-size: 15px; }
+.task-meta  { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.task-meta span { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--mute); }
+.task-desc  { font-size: 13px; color: var(--mute); margin-bottom: 14px; line-height: 1.5; }
+.task-footer{ display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.task-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 12px;
+  background: var(--g); color: var(--gold); font-size: 13px; font-weight: 700; border: none; transition: .2s;
+}
+.task-btn:hover    { background: var(--g2); transform: scale(1.03); }
+.task-btn.accepted { background: var(--gr); color: #fff; }
+.assign-card {
+  background: linear-gradient(135deg,var(--g),var(--g2)); color: #F5EEDB;
+  border-radius: var(--rad); padding: 22px; margin-bottom: 14px; position: relative; overflow: hidden;
+}
+.assign-card::after { content: ''; position: absolute; right: -20px; top: -20px; width: 100px; height: 100px; border-radius: 50%; background: rgba(201,162,39,.15); }
+.assign-card h4   { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
+.assign-card p    { font-size: 12px; opacity: .75; margin-bottom: 12px; }
+.assign-status    { display: inline-flex; align-items: center; gap: 6px; background: var(--gold); color: var(--g); font-size: 11px; font-weight: 800; padding: 4px 12px; border-radius: 20px; }
+.assign-detail    { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.assign-detail div{ background: rgba(255,255,255,.08); border-radius: 10px; padding: 8px 12px; font-size: 12px; }
+.assign-detail b  { display: block; font-size: 15px; font-weight: 800; }
+.upd-btn { width: 100%; margin-top: 12px; padding: 11px; border-radius: 12px; background: var(--gold); color: var(--g); font-weight: 800; font-size: 13px; border: none; cursor: pointer; transition: .2s; }
+.upd-btn:hover { background: var(--gold2); }
+.train-card { background: var(--card); border: 1.5px solid var(--line); border-radius: var(--rad); padding: 16px; display: flex; gap: 14px; margin-bottom: 10px; transition: .2s; }
+.train-card:hover { border-color: var(--gold); }
+.train-icon { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; flex: none; font-size: 22px; }
+.train-card h5 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.train-card p  { font-size: 12px; color: var(--mute); }
+</style>
+</head><body>
+
+<div class="layout">
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="logo"><span class="logo-text">ReliefLink</span></div>
+  <div class="nav-group">
+    <button class="nav-item active" data-page="home"><i data-i="home"></i>Home</button>
+    <button class="nav-item" data-page="tasks"><i data-i="list"></i>Available Tasks<span class="badge" id="taskBadge">0</span></button>
+    <button class="nav-item" data-page="assignments"><i data-i="check"></i>My Assignments</button>
+    <button class="nav-item" data-page="progress"><i data-i="chart"></i>Update Progress</button>
+    <div class="nav-sep"></div>
+    <button class="nav-item" data-page="training"><i data-i="award"></i>Training &amp; Resources</button>
+    <button class="nav-item" data-page="notifications"><i data-i="bell"></i>Notifications<span class="badge" id="notifBadge">0</span></button>
+    <button class="nav-item" data-page="profile"><i data-i="user"></i>Profile</button>
+    <a class="nav-item" href="settings.html?from=volunteer"><i data-i="set"></i>Settings</a>
+  </div>
+  <div class="nav-bottom">
+    <div class="user-card"><div class="user-av" id="sideAv">VL</div><div class="info"><div class="name" id="sideName">Volunteer</div><div class="role">Volunteer</div></div></div>
+    <button class="logout-btn" onclick="RL_Logout()"><i data-i="logout"></i>Log Out</button>
+  </div>
+</aside>
+<div class="mob-overlay" id="mobOverlay"></div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <button class="menu-toggle" onclick="RL_ToggleMenu()"><i data-i="list"></i></button>
+    <div class="left"><h1 id="pageTitle">Welcome Back!</h1><div class="sub" id="pageSub">Here's what's happening on the ground today</div></div>
+    <div class="search-box"><i data-i="search"></i><input placeholder="Search tasks…" oninput="filterTasks()"></div>
+    <button class="notif-btn" onclick="navigate('notifications')"><i data-i="bell"></i><div class="dot"></div></button>
+    <div class="prof-chip"><div class="av" id="topAv">VL</div><div><b id="topName">Volunteer</b><small>Active</small></div></div>
+  </div>
+
+  <!-- HOME -->
+  <div id="page-home">
+    <div class="stats-grid">
+      <div class="stat-card fade-up"><div class="stat-icon" style="background:#3CC08E22;color:var(--gr)"><i data-i="check"></i></div><div><div class="val" id="vTasks">0</div><div class="label">Tasks Completed</div><div class="sub">From your assignments</div></div></div>
+      <div class="stat-card fade-up"><div class="stat-icon" style="background:#4C8DF622;color:var(--b)"><i data-i="clock"></i></div><div><div class="val" id="vHours">0</div><div class="label">Hours Served</div><div class="sub">4h per completed task</div></div></div>
+      <div class="stat-card fade-up"><div class="stat-icon" style="background:#F5B83D22;color:var(--y)"><i data-i="star"></i></div><div><div class="val" id="vActive">0</div><div class="label">Active Tasks</div><div class="sub">Assigned to you</div></div></div>
+      <div class="stat-card fade-up"><div class="stat-icon" style="background:#7C6CF022;color:var(--p)"><i data-i="award"></i></div><div><div class="val" id="vOpen">0</div><div class="label">Open Tasks</div><div class="sub">Waiting for volunteers</div></div></div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <div id="homeAssign"></div>
+        <div class="card fade-up" style="margin-top:14px">
+          <div class="card-header"><h3>Task Progress</h3></div>
+          <div id="homeProgress"></div>
+        </div>
+      </div>
+      <div>
+        <div class="card fade-up" style="margin-bottom:16px">
+          <div class="card-header"><h3>Your Stats</h3><span class="badge-sm">All time</span></div>
+          <div id="homeCatStats"></div>
+        </div>
+        <div class="card fade-up">
+          <div class="card-header"><h3>Quick Actions</h3></div>
+          <div style="display:grid;gap:8px">
+            <button class="action-btn" onclick="navigate('tasks')"><div class="ic" style="background:#7C6CF022;color:var(--p)"><i data-i="list"></i></div>Browse Available Tasks</button>
+            <button class="action-btn" onclick="openUpdateModal()"><div class="ic" style="background:#3CC08E22;color:var(--gr)"><i data-i="chart"></i></div>Update Current Progress</button>
+            <button class="action-btn" onclick="navigate('training')"><div class="ic" style="background:#F5B83D22;color:var(--y)"><i data-i="award"></i></div>Training Resources</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TASKS -->
+  <div id="page-tasks" class="hide">
+    <div class="filters">
+      <select class="filter-sel" id="catFilter" onchange="filterTasks()"><option value="">All Categories</option><option>Food &amp; Water</option><option>Shelter</option><option>Medical</option><option>Rescue</option><option>Logistics</option></select>
+      <select class="filter-sel" id="locFilter" onchange="filterTasks()"><option value="">All Locations</option><option>Rajanpur</option><option>Muzaffargarh</option><option>Layyah</option><option>Jhang</option><option>Sukkur</option></select>
+      <button class="filter-chip active" onclick="setPri('all',this)">All</button>
+      <button class="filter-chip" onclick="setPri('critical',this)">Critical</button>
+      <button class="filter-chip" onclick="setPri('high',this)">High</button>
+      <button class="filter-chip" onclick="setPri('medium',this)">Medium</button>
+    </div>
+    <div id="taskList"></div>
+  </div>
+
+  <!-- ASSIGNMENTS -->
+  <div id="page-assignments" class="hide">
+    <div id="myTasks"></div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div id="page-progress" class="hide">
+    <div class="card fade-up" style="margin-bottom:16px">
+      <div class="card-header"><h3>Current Task Progress</h3></div>
+      <div id="progCurrent"></div>
+    </div>
+    <div class="card fade-up">
+      <div class="card-header"><h3>Log Progress Update</h3></div>
+      <div style="display:grid;gap:12px">
+        <div><label class="form-group" style="margin:0 0 6px">Status</label><select id="pgStatus" class="filter-sel" style="width:100%"><option value="in_progress">In Progress</option><option value="claimed">Needs Help / Backup</option><option value="completed">Completed</option></select></div>
+        <div><label class="form-group" style="margin:0 0 6px">Notes</label><textarea id="pgNote" class="field-input" style="min-height:80px" placeholder="Describe your progress…"></textarea></div>
+        <button class="task-btn" style="justify-content:center" onclick="submitPageUpdate()">Submit Update</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRAINING -->
+  <div id="page-training" class="hide">
+    <div class="card fade-up" style="margin-bottom:16px"><div class="card-header"><h3>Training Resources</h3><span class="badge-sm">4 available</span></div></div>
+    <div id="trainingList"></div>
+  </div>
+
+  <!-- NOTIFICATIONS -->
+  <div id="page-notifications" class="hide">
+    <div class="card fade-up">
+      <div class="card-header"><h3>Notifications</h3><button class="badge-sm" onclick="clearNotifs()" style="border:none;cursor:pointer">Mark all read</button></div>
+      <div id="notifList"></div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div id="page-profile" class="hide">
+    <div class="grid-2">
+      <div class="card fade-up">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+          <div style="width:72px;height:72px;border-radius:50%;background:var(--g);border:3px solid var(--gold);display:grid;place-items:center;font-weight:800;font-size:24px;color:var(--gold)" id="profAv">VL</div>
+          <div><h3 id="profName" style="font-size:20px;font-weight:800">Volunteer</h3><p class="mute" style="font-size:13px" id="profSince">Registered Volunteer</p><div class="tag tag-green" style="margin-top:6px;display:none" id="profVerified"><i data-i="check"></i>Verified</div></div>
+        </div>
+        <div class="item"><div class="item-icon" style="background:#4C8DF622;color:var(--b)"><i data-i="user"></i></div><div class="t">Full Name<small id="profNameFull">Volunteer</small></div></div>
+        <div class="item"><div class="item-icon" style="background:#3CC08E22;color:var(--gr)"><i data-i="phone"></i></div><div class="t">Phone<small id="profPhone">Not set</small></div></div>
+        <div class="item"><div class="item-icon" style="background:#F5B83D22;color:var(--y)"><i data-i="pin"></i></div><div class="t">Availability<small id="profCity">Not set</small></div></div>
+        <div class="item"><div class="item-icon" style="background:#7C6CF022;color:var(--p)"><i data-i="award"></i></div><div class="t">Skills<small id="profSkill">Not set</small></div></div>
+      </div>
+      <div>
+        <div class="card fade-up" style="margin-bottom:16px">
+          <div class="card-header"><h3>Achievements</h3></div>
+          <div id="profAch"></div>
+        </div>
+        <div class="card fade-up">
+          <div class="card-header"><h3>Task History</h3></div>
+          <div id="profHist"></div>
+        </div>
+        <div class="card fade-up" style="margin-top:16px">
+          <div class="card-header"><h3>My Resources</h3><span class="badge-sm">Registry</span></div>
+          <p class="mute" style="font-size:12.5px;margin-bottom:10px">If you have any of these resources, mark them — rescue teams look for nearby registered assets (boat, generator, vehicle) when they need them.</p>
+          <div class="pill-row" id="assetPills">
+            <button type="button" class="pill" data-v="Boat">Boat</button>
+            <button type="button" class="pill" data-v="Small boat">Small boat</button>
+            <button type="button" class="pill" data-v="Van / 4x4">Van / 4x4</button>
+            <button type="button" class="pill" data-v="Generator">Generator</button>
+            <button type="button" class="pill" data-v="Medical kit">Medical kit</button>
+            <button type="button" class="pill" data-v="Crane / Winch">Crane / Winch</button>
+            <button type="button" class="pill" data-v="Radio">Radio</button>
+          </div>
+          <button type="button" class="submit-btn" style="margin-top:12px" id="assetSaveBtn" onclick="saveAssets()">Save My Resources</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- UPDATE MODAL -->
+<div class="modal-overlay" id="updateModal" onclick="RL_CloseModalOutside(event,'updateModal')">
+  <div class="modal">
+    <h3>Update Progress</h3>
+    <p>Log your current status for <b id="upTaskName">your task</b></p>
+    <label>Status</label>
+    <select class="field-input" id="upStatus" style="margin-bottom:16px"><option value="in_progress">In Progress</option><option value="claimed">Needs Backup</option><option value="claimed">Blocked</option><option value="completed">Completed</option></select>
+    <label>Notes</label>
+    <textarea class="field-input" id="upNote" style="min-height:80px" placeholder="Describe progress, issues or completion…"></textarea>
+    <div class="modal-actions">
+      <button class="btn-o" onclick="RL_CloseModal('updateModal')">Cancel</button>
+      <button class="btn-g" onclick="submitUpdate()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="../config.js"></script>
+<script src="shared.js"></script>
+<script>
+/* ── TASK DATA ── */
+var allTasks = [
+  {id:1,title:'Food Package Distribution',cat:'Food & Water',loc:'Rajanpur',pri:'critical',desc:'Distribute 300 food packages to stranded families. Requires vehicle.',people:120,hours:6,team:8},
+  {id:2,title:'Emergency Medical Support',cat:'Medical',loc:'Muzaffargarh',pri:'critical',desc:'Assist with triage and basic first aid at relief camp.',people:45,hours:12,team:4},
+  {id:3,title:'Temporary Shelter Setup',cat:'Shelter',loc:'Layyah',pri:'high',desc:'Erect 80 tents for displaced families.',people:200,hours:8,team:15},
+  {id:4,title:'Water Purification Station',cat:'Food & Water',loc:'Jhang',pri:'high',desc:'Operate purification equipment. Training provided on-site.',people:500,hours:10,team:6},
+  {id:5,title:'Flood Victim Registration',cat:'Logistics',loc:'Rajanpur',pri:'medium',desc:'Register displaced persons and distribute ID cards.',people:300,hours:6,team:5},
+  {id:6,title:'Blanket & Clothing Drive',cat:'Logistics',loc:'Sukkur',pri:'medium',desc:'Sort, pack, and distribute donated blankets and clothing.',people:180,hours:4,team:10}
+];
+var myAssignments = [];
+var priFilter = 'all';
+var PT = {critical:'tag-red',high:'tag-orange',medium:'tag-yellow',low:'tag-green'};
+var PL = {critical:'Critical',high:'High Priority',medium:'Medium',low:'Low'};
+
+/* ── LIVE wiring ── */
+/* Auth gate: with a live API the volunteer must be signed in; demo mode (no API) still works. */
+if (window.RL_API && !window.RL_RequireAuth('volunteer')) { /* redirect pending — skip live calls */ }
+var VOL = (function() {
+  var s = window.RL_Auth ? window.RL_Auth.sess() : null;
+  if (s && s.user) { // signed-in: use the real volunteer row id saved at sign-in (/auth/me refresh)
+    try { var rid = localStorage.getItem('rl_vol_id'); if (rid && rid.indexOf('rl_vol_id-') !== 0) return rid; } catch (e) {}
+    if (s.user.id) return String(s.user.id);
+  }
+  return window.RL_MyId ? window.RL_MyId('rl_vol_id') : 'vol-demo';
+})();
+function _normTask(x) {
+  return {
+    id: String(x.id), title: x.title || 'Relief Task',
+    cat: (window.RL_CAT_KEY2LABEL && window.RL_CAT_KEY2LABEL[x.category]) || x.category || 'General',
+    loc: x.city || '', pri: x.priority || 'medium',
+    desc: (x.skills_needed && x.skills_needed.length) ? ('Skills needed: ' + x.skills_needed.join(', ') + '.') : 'Volunteer relief task coordinated from the command centre.',
+    people: x.people || 0, hours: x.hours || 0, team: x.team || 0, status: x.status || 'open'
+  };
+}
+function loadTasks() {
+  RL_Get('/tasks').then(function(a) {
+    if (Array.isArray(a) && a.length) { allTasks = a.map(_normTask); filterTasks(); renderHome(); }
+  });
+}
+function loadMyAssignments() {
+  RL_Get('/tasks/my-assignments?volunteer_id=' + encodeURIComponent(VOL)).then(function(a) {
+    if (Array.isArray(a)) { myAssignments = a.map(_normTask); renderMyTasks(); }
+  });
+}
+function loadStats() {
+  RL_Get('/tasks/volunteer-stats?volunteer_id=' + encodeURIComponent(VOL)).then(function(s) {
+    if (!s) return;
+    var vt = RL_$('vTasks'), vh = RL_$('vHours');
+    if (vt && s.tasks_completed != null) vt.textContent = s.tasks_completed;
+    if (vh && s.hours_served != null) vh.textContent = (s.hours_served >= 1000 ? s.hours_served.toLocaleString() + '+' : s.hours_served);
+  });
+}
+function updateProgress(status, note) {
+  var t = myAssignments[0];
+  if (!t) { RL_Toast('No active task yet — accept one from Available Tasks'); return; }
+  RL_Send('PATCH', '/tasks/' + encodeURIComponent(t.id) + '/progress', { status: status, progress_note: note || '' }).then(function(res) {
+    RL_Toast(res && res.ok ? 'Progress saved to server' : 'Progress updated');
+    if (res && res.ok) { loadTasks(); loadMyAssignments(); loadStats(); }
+  });
+}
+function submitUpdate() {
+  var st = (RL_$('upStatus') || {}).value || 'in_progress';
+  var note = (RL_$('upNote') || {}).value || '';
+  RL_CloseModal('updateModal');
+  updateProgress(st, note);
+}
+function submitPageUpdate() {
+  var st = (RL_$('pgStatus') || {}).value || 'in_progress';
+  var note = (RL_$('pgNote') || {}).value || '';
+  updateProgress(st, note);
+}
+function openUpdateModal() {
+  var t = myAssignments[0];
+  var nm = RL_$('upTaskName');
+  if (nm) nm.textContent = t ? t.title : 'your task';
+  if (!t) { RL_Toast('No active task yet — accept one from Available Tasks'); return; }
+  RL_OpenModal('updateModal');
+}
+function loadVolunteerLive() { loadTasks(); loadMyAssignments(); loadStats(); loadNotifs(); loadProfile(); }
+
+/* ── REAL home rendering (no mock progress) ── */
+var ST_STEP = { claimed: 2, in_progress: 3, completed: 4 };
+var ST_TEXT = { open: 'Open', claimed: 'Claimed', in_progress: 'In Progress', completed: 'Completed' };
+function stepperHTML(t) {
+  var step = ST_STEP[t.status] || 2;
+  var labels = ['Assigned', 'Claimed', 'In Progress', 'Completed'];
+  var pct = [15, 40, 70, 100][step - 1];
+  var s = '<div class="steps">';
+  for (var i = 0; i < 4; i++) {
+    var n = i + 1, cls = n < step ? 'done' : (n === step ? 'active' : '');
+    s += '<div class="step ' + cls + '"><div class="step-dot">' + (n < step ? RL_Icon('check') : n) + '</div><label>' + labels[i] + '</label></div>';
+  }
+  s += '</div><div class="bar" style="margin:16px 0 4px"><i style="width:' + pct + '%;background:var(--gold)"></i></div>'
+    + '<p class="center mute" style="font-size:12px;margin-top:6px">' + pct + '% Complete · Status: ' + (ST_TEXT[t.status] || t.status) + '</p>';
+  return s;
+}
+function renderHome() {
+  var t = myAssignments.filter(function(x){ return x.status !== 'completed'; })[0] || myAssignments[0];
+  var el = RL_$('homeAssign');
+  if (el) el.innerHTML = t
+    ? '<div class="assign-card fade-up"><div class="assign-status">' + RL_Icon('flame') + ' Active Assignment</div>'
+      + '<h4 style="margin-top:10px">' + t.title + '</h4><p>' + (t.desc || '') + '</p>'
+      + '<div class="assign-detail">'
+      + '<div><b>' + (t.loc || '—') + '</b>Area</div>'
+      + '<div><b>' + (PL[t.pri] || t.pri) + '</b>Priority</div>'
+      + '<div><b>' + (ST_TEXT[t.status] || t.status) + '</b>Status</div>'
+      + '<div><b>' + (t.team || '—') + '</b>Team</div>'
+      + '</div><button class="upd-btn" onclick="openUpdateModal()">Update Progress</button></div>'
+    : '<div class="assign-card fade-up center" style="padding:30px 22px"><div style="font-size:34px;margin-bottom:6px"></div>'
+      + '<h4 style="font-size:16px;font-weight:800;margin-bottom:4px">No active assignment yet</h4>'
+      + '<p style="opacity:.8;font-size:13px;margin-bottom:14px">You joined ReliefLink — claim your first task from the queue and every hour will count here.</p>'
+      + '<button class="upd-btn" style="max-width:260px;margin:0 auto" onclick="navigate(\'tasks\')">Browse Available Tasks</button></div>';
+  var pe = RL_$('homeProgress');
+  if (pe) pe.innerHTML = t ? stepperHTML(t) : '<p class="mute center" style="font-size:13px;padding:8px 0">Progress tracking starts as soon as you accept a task.</p>';
+  var pc = RL_$('progCurrent');
+  if (pc) pc.innerHTML = t ? stepperHTML(t) : '<p class="mute center" style="font-size:13px;padding:8px 0">No task assigned yet — nothing to track.</p>';
+  var ae = RL_$('vActive'); if (ae) ae.textContent = myAssignments.filter(function(x){ return x.status !== 'completed'; }).length;
+  var oe = RL_$('vOpen'); if (oe) oe.textContent = allTasks.length;
+  renderCatStats();
+  renderProfileDynamic();
+}
+function renderCatStats() {
+  var el = RL_$('homeCatStats'); if (!el) return;
+  if (!myAssignments.length) { el.innerHTML = '<p class="mute" style="font-size:13px;padding:8px 0">Your category stats will appear once you claim tasks.</p>'; return; }
+  var m = {};
+  myAssignments.forEach(function(t) { m[t.cat] = (m[t.cat] || 0) + 1; });
+  var keys = Object.keys(m), max = Math.max.apply(null, keys.map(function(k) { return m[k]; }));
+  var COL = { 'Food & Water': 'var(--gr)', 'Shelter': 'var(--b)', 'Medical': 'var(--r)', 'Rescue': 'var(--o)', 'Logistics': 'var(--y)' };
+  el.innerHTML = keys.map(function(k) {
+    return '<div class="item"><div class="item-icon" style="background:rgba(201,162,39,.15);color:var(--g)">' + RL_Icon('bag') + '</div>'
+      + '<div class="t">' + k + '<div class="bar"><i style="width:' + (m[k] / max * 100) + '%;background:' + (COL[k] || 'var(--gold)') + '"></i></div></div><b>' + m[k] + '</b></div>';
+  }).join('');
+}
+function renderProfileDynamic() {
+  var done = myAssignments.filter(function(t) { return t.status === 'completed'; });
+  var h = RL_$('profHist');
+  if (h) h.innerHTML = done.length
+    ? done.map(function(t) {
+        return '<div class="item"><div class="item-icon" style="background:#3CC08E22;color:var(--gr)">' + RL_Icon('check') + '</div>'
+          + '<div class="t">' + t.title + '<small>' + (t.loc || '') + '</small></div><span class="tag tag-green">Done</span></div>';
+      }).join('')
+    : '<p class="mute" style="font-size:13px;padding:8px 0">No completed tasks yet — your history will build up here.</p>';
+  var a = RL_$('profAch');
+  if (a) a.innerHTML = done.length >= 1
+    ? '<div class="item"><div class="item-icon" style="background:rgba(201,162,39,.18);color:var(--gold)">' + RL_Icon('award') + '</div><div class="t">First Task Done<small>Completed ' + done.length + ' task' + (done.length > 1 ? 's' : '') + ' — thank you!</small></div><span class="tag tag-yellow"></span></div>'
+    : '<p class="mute" style="font-size:13px;padding:8px 0">Complete your first task to earn your first badge.</p>';
+}
+function loadProfile() {
+  RL_Get('/volunteers').then(function(v) {
+    if (!Array.isArray(v)) return;
+    var me = v.filter(function(x) { return String(x.id) === String(VOL); })[0];
+    if (!me) return;
+    if (RL_$('profVerified') && me.verified) RL_$('profVerified').style.display = '';
+    if (RL_$('profNameFull')) RL_$('profNameFull').textContent = me.full_name || '—';
+    if (RL_$('profPhone')) RL_$('profPhone').textContent = me.phone || 'Not set';
+    if (RL_$('profCity')) RL_$('profCity').textContent = me.availability || 'Not set';
+    if (RL_$('profSkill')) RL_$('profSkill').textContent = (me.skills && me.skills.length) ? me.skills.join(', ') : 'Not set';
+    if (RL_$('profSince') && me.registered_at) {
+      try { RL_$('profSince').textContent = 'Active Volunteer · Since ' + new Date(me.registered_at).toLocaleDateString('en-PK', { month: 'short', year: 'numeric', timeZone: 'Asia/Karachi' }); } catch (e) {}
+    }
+    // reflect saved resources in the registry pills
+    var ap = RL_$('assetPills');
+    if (ap) ap.querySelectorAll('.pill').forEach(function(p) { p.classList.toggle('on', (me.assets || []).indexOf(p.dataset.v) > -1); });
+  });
+}
+
+/* ── RESOURCE REGISTRY: my assets ── */
+document.querySelectorAll('#assetPills .pill').forEach(function(p) {
+  p.addEventListener('click', function () { p.classList.toggle('on'); });
+});
+function saveAssets() {
+  var assets = [].slice.call(document.querySelectorAll('#assetPills .pill.on')).map(function (p) { return p.dataset.v; });
+  var btn = RL_$('assetSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  RL_Send('PATCH', '/volunteers/' + encodeURIComponent(VOL), { assets: assets }).then(function (res) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save My Resources'; }
+    if (res && res.ok) RL_Toast(assets.length ? 'Resources saved — visible to admin and rescue teams' : 'Cleared — no assets marked');
+    else RL_Toast('Could not reach the server — try again');
+  });
+}
+
+function taskCard(t, mine) {
+  return '<div class="task-card ' + t.pri + ' fade-up">'
+    + '<div class="task-top"><div class="task-title">' + t.title + '</div><span class="tag ' + PT[t.pri] + '">' + PL[t.pri] + '</span></div>'
+    + '<div class="task-meta"><span>' + RL_Icon('pin') + ' ' + (t.loc||'—') + '</span>' + (t.people ? '<span>' + RL_Icon('users') + ' ' + t.people + '</span>' : '') + (t.hours ? '<span>' + RL_Icon('clock') + ' ~' + t.hours + 'h</span>' : '') + '</div>'
+    + '<p class="task-desc">' + t.desc + '</p>'
+    + '<div class="task-footer"><span class="tag tag-blue">' + t.cat + '</span>'
+    + (mine
+      ? '<button class="task-btn accepted" onclick="openUpdateModal()"><i data-i="chart"></i> Update</button>'
+      : '<button class="task-btn" onclick="acceptTask(\'' + t.id + '\',this)"><i data-i="check"></i> Accept</button>')
+    + '</div></div>';
+}
+function filterTasks() {
+  var cat = (document.getElementById('catFilter')||{}).value || '';
+  var loc = (document.getElementById('locFilter')||{}).value || '';
+  var q   = ((document.getElementById('searchInput')||{}).value || '').toLowerCase();
+  var filtered = allTasks.filter(function(t) {
+    return (!cat || t.cat === cat) && (!loc || t.loc === loc)
+        && (priFilter === 'all' || t.pri === priFilter)
+        && (!q || t.title.toLowerCase().indexOf(q) >= 0 || t.loc.toLowerCase().indexOf(q) >= 0);
+  });
+  var el = RL_$('taskList');
+  if (el) { el.innerHTML = filtered.length ? filtered.map(function(t){return taskCard(t,false)}).join('') : '<div class="card center mute" style="padding:40px">No tasks match your filters</div>'; }
+  if (RL_$('taskBadge')) RL_$('taskBadge').textContent = filtered.length;
+  RL_Icons();
+}
+function setPri(p, btn) {
+  priFilter = p;
+  document.querySelectorAll('.filter-chip').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  filterTasks();
+}
+function acceptTask(id, btn) {
+  var t = allTasks.filter(function(x){ return String(x.id) === String(id); })[0];
+  if (!t) return;
+  if (btn) { btn.innerHTML = '… claiming'; btn.disabled = true; }
+  RL_Send('POST', '/tasks/' + encodeURIComponent(id) + '/claim', { volunteer_id: VOL }).then(function(res){
+    if (res && res.ok) {
+      RL_Toast('Task accepted! Check My Assignments.');
+    } else {
+      RL_Toast('Could not claim on server — try again');
+      if (btn) { btn.innerHTML = RL_Icon('check') + ' Accept'; btn.disabled = false; return; }
+    }
+    loadTasks(); loadMyAssignments(); loadStats();
+  });
+}
+function renderMyTasks() {
+  var el = RL_$('myTasks');
+  if (el) {
+    el.innerHTML = myAssignments.length
+      ? myAssignments.map(function(t){return taskCard(t,true)}).join('')
+      : '<div class="card center mute" style="padding:40px">No assignments yet — accept a task from Available Tasks and it will appear here.</div>';
+    RL_Icons();
+  }
+  renderHome();
+}
+
+/* ── NOTIFICATIONS (real admin alerts via /alerts; empty until loaded) ── */
+var notifs = [];
+function renderNotifs(allRead) {
+  var el = RL_$('notifList');
+  if (!el) return;
+  if (!notifs.length) { el.innerHTML = '<p class="mute center" style="font-size:13px;padding:26px 0">No notifications right now. Admin broadcasts and field alerts will appear here.</p>'; return; }
+  el.innerHTML = notifs.map(function(n) {
+    if (allRead) n.read = true;
+    return '<div class="item" style="' + (n.read ? 'opacity:.6' : '') + '">'
+      + '<div class="item-icon" style="background:' + n.col + '22;color:' + n.col + '">' + RL_Icon(n.icon) + '</div>'
+      + '<div class="t">' + n.title + '<small>' + n.desc + '</small></div>'
+      + (n.read ? '' : '<div style="width:8px;height:8px;border-radius:50%;background:var(--r);flex:none"></div>')
+      + '</div>';
+  }).join('');
+}
+/* Real admin broadcasts → notifications feed (mock list kept as offline fallback) */
+var SEV_STYLE = {
+  critical: { icon:'flame', col:'var(--r)'  },
+  high:     { icon:'bell',  col:'var(--o)'  },
+  medium:   { icon:'bell',  col:'var(--y)'  },
+  low:      { icon:'check', col:'var(--gr)' }
+};
+function loadNotifs() {
+  RL_Get('/alerts?active=true&limit=10').then(function(a) {
+    if (!Array.isArray(a) || !a.length) return;
+    notifs = a.map(function(x) {
+      var s = SEV_STYLE[x.severity] || SEV_STYLE.medium;
+      return { icon: s.icon, col: s.col,
+        title: x.title || 'Alert',
+        desc: (x.location_text ? x.location_text + ' · ' : '') + (x.description || 'Severity: ' + (x.severity || 'medium')),
+        read: false };
+    });
+    renderNotifs(false);
+    var b = RL_$('notifBadge');
+    if (b) b.textContent = notifs.filter(function(n) { return !n.read; }).length;
+  });
+}
+function clearNotifs() { if (RL_$('notifBadge')) RL_$('notifBadge').textContent = '0'; renderNotifs(true); RL_Toast('All notifications marked as read'); }
+
+/* ── TRAINING ── */
+var training = [
+  {emoji:'',title:'Basic First Aid & CPR',level:'Beginner',dur:'2h',done:true,desc:'Essential first aid and CPR techniques.'},
+  {emoji:'',title:'Flood Rescue Operations',level:'Intermediate',dur:'4h',done:false,desc:'Boat handling and water rescue procedures.'},
+  {emoji:'',title:'Food Safety & Distribution',level:'Beginner',dur:'1.5h',done:true,desc:'Food handling, storage, and distribution.'},
+  {emoji:'',title:'Shelter Construction',level:'Beginner',dur:'3h',done:false,desc:'Tent setup and basic shelter management.'}
+];
+function renderTraining() {
+  var el = RL_$('trainingList');
+  if (!el) return;
+  el.innerHTML = training.map(function(t) {
+    return '<div class="train-card"><div class="train-icon" style="background:' + (t.done ? '#3CC08E22' : '#4C8DF622') + '">' + t.emoji + '</div>'
+      + '<div style="flex:1"><h5>' + t.title + '</h5><p>' + t.desc + '</p>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
+      + '<span class="tag ' + (t.done ? 'tag-green' : 'tag-blue') + '">' + t.level + '</span>'
+      + '<span class="tag tag-yellow">' + RL_Icon('clock') + ' ' + t.dur + '</span>'
+      + (t.done ? '<span class="tag tag-green">' + RL_Icon('check') + ' Done</span>'
+                : '<button class="task-btn" style="padding:6px 14px;font-size:12px" onclick="RL_Toast(\'Starting: ' + t.title + '\')">Start</button>')
+      + '</div></div></div>';
+  }).join('');
+}
+
+/* ── NAVIGATION ── */
+var PAGES = {
+  home:          'Welcome Back!|Here\'s what\'s happening on the ground today',
+  tasks:         'Available Tasks|Find and accept volunteer assignments',
+  assignments:   'My Assignments|Your current and past task assignments',
+  progress:      'Update Progress|Log your current task status',
+  training:      'Training & Resources|Skill development and learning',
+  notifications: 'Notifications|Alerts and updates from the field',
+  profile:       'My Profile|Your volunteer information and achievements'
+};
+function navigate(page) {
+  RL_Navigate(page, PAGES, function(p) {
+    if (p === 'tasks')         filterTasks();
+    if (p === 'assignments')   renderMyTasks();
+    if (p === 'progress')      renderHome();
+    if (p === 'training')      renderTraining();
+    if (p === 'notifications') { renderNotifs(false); loadNotifs(); }
+    if (p === 'home')          renderHome();
+  });
+}
+RL_WireNav(PAGES, function(p){ navigate(p); });
+
+/* ── BOOT ─ */
+RL_BootUser({ defaultName: 'Volunteer', defaultRole: 'volunteer' });
+renderNotifs(false);
+renderHome();
+RL_Icons();
+if (!window.RL_API || window.RL_Auth.token()) {
+  loadVolunteerLive();
+  // once /auth/me lands, switch to the real volunteer row id and reload scoped data
+  if (window.RL_API && window.RL_Auth.token()) window.RL_RefreshMe().then(function(d) {
+    if (d && d.volunteer && d.volunteer.id && String(VOL) !== String(d.volunteer.id)) {
+      VOL = String(d.volunteer.id);
+      loadMyAssignments(); loadStats(); loadProfile();
+    }
+  });
+}
+</script>
+</body></html>
